@@ -6,14 +6,34 @@
 <meta name="theme-color" content="#0f1226" />
 <title>Dodger — mini game</title>
 <link rel="stylesheet" href="style.css" />
+<link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap" rel="stylesheet">
 </head>
 <body>
 <div class="wrap">
-  <canvas id="game" width="420" height="640" aria-label="Dog runner game area"></canvas>
-  <div class="hud">
-    <button id="restart" class="btn">Restart (R)</button>
+  <div class="hud hud-top-right">
+    <button id="exit-fs" class="btn" aria-label="Exit fullscreen">Exit</button>
+  </div>
+  <div class="hud hud-top-left">
     <div id="score">Score: 0</div>
-  <div class="hint">Jump: Tap anywhere / Space / ↑ / W</div>
+  </div>
+  <canvas id="game" width="420" height="640" aria-label="Dog runner game area"></canvas>
+  <div id="gameover-overlay" class="overlay-go" hidden>
+    <div class="go-card">
+      <div class="go-title">Game Over</div>
+      <div class="go-score" id="go-score">Final Score: 0</div>
+      <div class="go-actions">
+        <button id="go-restart" class="btn">Restart</button>
+      </div>
+    </div>
+  </div>
+  <div class="hud hud-bottom">
+    <div class="bottom-row controls">
+      <button id="fullscreen" class="btn" aria-label="Toggle fullscreen">Fullscreen</button>
+      <button id="restart" class="btn">Restart (R)</button>
+    </div>
+    <div class="bottom-row hint-row">
+      <div class="hint">Jump: Tap anywhere / Space / ↑ / W</div>
+    </div>
   </div>
 </div>
 <script src="script.js" defer></script>
