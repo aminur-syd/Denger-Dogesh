@@ -37,9 +37,11 @@ canvas { background:#14183a; border:2px solid #2e3aa8; border-radius:14px; box-s
 /* :fullscreen .hud, body.is-fullscreen .hud { display:none; } */
 body.is-fullscreen .wrap { padding:0; }
 body.is-fullscreen canvas { max-width:100vw; max-height:100vh; margin:0 auto; display:block; border:none; border-radius:0; box-shadow:none; }
-body.is-fullscreen .hud-top-right { display:block; }
-body.is-fullscreen #fullscreen { display:none; }
-body.is-fullscreen .hud-top-left { display:block; }
+body.is-fullscreen .hud-top-right { display:block !important; }
+body.is-fullscreen #fullscreen { display:none !important; }
+/* Hide all other HUD texts/controls in fullscreen */
+body.is-fullscreen .hud-bottom { display:none !important; }
+body.is-fullscreen .hud-top-left { display:none !important; }
 
 /* Game Over overlay */
 .overlay-go { position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none; }
