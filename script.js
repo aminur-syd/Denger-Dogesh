@@ -154,7 +154,7 @@
   let goTimer = null;
   let ac;
   let audioUnlocked = false;
-  const JUMP_SRC = 'essentials/jump.mp3';
+  const JUMP_SRC = 'essentials/Dog jump.mp3';
   const JUMP_POOL_SIZE = 6;
   const jumpPool = Array.from({ length: JUMP_POOL_SIZE }, () => {
     const a = new Audio();
@@ -327,16 +327,67 @@
 
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function rectsOverlap(a, b) { return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y); }
+  function insetRect(x, y, w, h, l, t, r, b) {
+    const nx = x + l;
+    const ny = y + t;
+    const nw = Math.max(1, w - l - r);
+    const nh = Math.max(1, h - t - b);
+    return { x: nx, y: ny, w: nw, h: nh };
+  }
+  function getDogHitbox(d) {
+    // Inset dog hitbox fairly to reduce unfair collisions
+    const l = Math.max(8, Math.floor(d.w * 0.14));
+    const r = l;
+    const t = Math.max(8, Math.floor(d.h * 0.12));
+    const b = Math.max(6, Math.floor(d.h * 0.10));
+    return insetRect(d.x, d.y, d.w, d.h, l, t, r, b);
+  }
+  function getObstacleHitbox(o) {
+    if (o.kind === 'gap') {
+      // Treat gap as a thin collider at footpath level; we’ll special-case in overlap loop
+      return { x: o.x, y: RUN_Y - 2, w: o.w, h: 4 };
+    }
+    // Default inset for solid obstacles; a bit more forgiving on sides/top
+    const baseL = Math.max(4, Math.floor(o.w * 0.12));
+    const baseR = baseL;
+    const baseT = Math.max(6, Math.floor(o.h * 0.18));
+    const baseB = Math.max(4, Math.floor(o.h * 0.08));
+    return insetRect(o.x, o.y, o.w, o.h, baseL, baseT, baseR, baseB);
+  }
   function spawnObstacle() {
-    const type = Math.random();
-    const w = type < 0.5 ? 20 + Math.random() * 16 : 16 + Math.random() * 10;
-    const h = type < 0.5 ? 22 + Math.random() * 20 : 42 + Math.random() * 26;
+    // Randomize obstacle types: vacuum, balloon, stone, or gap
+    const r = Math.random();
     const last = obstacles.length ? obstacles[obstacles.length - 1] : null;
-    const baseX = W + w + Math.random() * 60;
+    let o;
+    if (r < 0.35) {
+      // Vacuum cleaner (various colors)
+      const w = 34 + Math.random() * 26;
+      const h = 46 + Math.random() * 24;
+      const color = ['#d24141', '#3d72d8', '#2db36b', '#d6922f', '#7a4bd6'][Math.floor(Math.random() * 5)];
+      o = { kind: 'vacuum', w, h, y: RUN_Y - h, color };
+    } else if (r < 0.65) {
+      // Stones (low, different widths)
+      const w = 24 + Math.random() * 36;
+      const h = 16 + Math.random() * 22;
+      const tone = ['#6c6860', '#7a756b', '#5d5a54', '#706a62'][Math.floor(Math.random() * 4)];
+      o = { kind: 'stone', w, h, y: RUN_Y - h, color: tone, variant: Math.floor(Math.random() * 3) };
+    } else if (r < 0.9) {
+      // Used white semi-transparent balloons
+      const w = 18 + Math.random() * 12;
+      const h = 30 + Math.random() * 18;
+      const lift = 6 + Math.random() * 18; // hover above footpath
+      o = { kind: 'balloon', w, h, y: RUN_Y - h - lift, alpha: 0.55 + Math.random() * 0.2 };
+    } else {
+      // Broken gaps between footpath (holes to jump over)
+      const w = 44 + Math.random() * 50;
+      const depth = 12 + Math.random() * 8;
+      // Represent as obstacle with nominal height for drawing; collision handled specially
+      o = { kind: 'gap', w, h: depth, y: RUN_Y - Math.min(8, depth), depth };
+    }
+    const baseX = W + o.w + Math.random() * 60;
     const minX = last ? (last.x + last.w + MIN_OBS_GAP) : baseX;
-    const x = Math.max(baseX, minX);
-    const y = RUN_Y - h;
-    obstacles.push({ x, y, w, h });
+    o.x = Math.max(baseX, minX);
+    obstacles.push(o);
   }
 
   function update(dt) {
@@ -359,7 +410,21 @@
     if (elapsed > 1.2 && lastSpawn > interval) { lastSpawn = 0; spawnObstacle(); }
     for (const o of obstacles) o.x -= speed * dt;
     while (obstacles.length && obstacles[0].x + obstacles[0].w < -20) { obstacles.shift(); obstaclesPassed += 1; }
-    for (const o of obstacles) { if (rectsOverlap({ x: dog.x + 8, y: dog.y + 6, w: dog.w - 16, h: dog.h - 12 }, o)) { gameOver = true; running = false; } }
+    for (const o of obstacles) {
+      if (o.kind === 'gap') {
+        // Dog collides with a gap if his feet are over the hole at footpath level
+        const footY = dog.y + dog.h;
+        if (footY >= RUN_Y - 1) {
+          const footL = dog.x + dog.w * 0.25;
+          const footR = dog.x + dog.w * 0.75;
+          if (!(footR < o.x || (o.x + o.w) < footL)) { gameOver = true; running = false; }
+        }
+        continue;
+      }
+      const dhb = getDogHitbox(dog);
+      const ohb = getObstacleHitbox(o);
+      if (rectsOverlap(dhb, ohb)) { gameOver = true; running = false; }
+    }
   }
 
   function tick(now) {
@@ -480,8 +545,7 @@
 
     drawDog(ctx, dog);
 
-    ctx.fillStyle = '#ff6b6b';
-    for (const o of obstacles) roundRect(ctx, o.x, o.y, o.w, o.h, 6, true);
+  for (const o of obstacles) drawObstacle(ctx, o);
 
     drawScore(ctx);
   }
@@ -613,6 +677,158 @@
     ctx.fillStyle = '#74cfe0';
     roundRect(ctx, d.x + 10, d.y + d.h - 5, 10, 5 + legOff * (phase > 0 ? 1 : 0), 2, true);
     roundRect(ctx, d.x + d.w - 20, d.y + d.h - 5, 10, 5 + legOff * (phase < 0 ? 1 : 0), 2, true);
+  }
+
+  function drawObstacle(ctx, o) {
+    switch (o.kind) {
+      case 'vacuum':
+        drawVacuum(ctx, o.x, o.y, o.w, o.h, o.color);
+        break;
+      case 'balloon':
+        drawBalloon(ctx, o.x, o.y, o.w, o.h, o.alpha || 0.6);
+        break;
+      case 'stone':
+        drawStone(ctx, o.x, o.y, o.w, o.h, o.color, o.variant || 0);
+        break;
+      case 'gap':
+        drawGap(ctx, o.x, o.w, o.h);
+        break;
+      default:
+        drawVacuum(ctx, o.x, o.y, o.w, o.h, o.color);
+        break;
+    }
+  }
+
+  function drawVacuum(ctx, x, y, w, h, bodyColor = '#d24141') {
+    // Bottom-aligned within given box (x,y,w,h)
+    const bx = x, by = y, bw = w, bh = h;
+    const bodyH = bh * 0.55;
+    const bodyY = by + (bh - bodyH);
+    const r = Math.max(6, Math.min(12, bw * 0.25));
+    // Body (canister)
+    ctx.save();
+    ctx.fillStyle = bodyColor;
+    roundRect(ctx, Math.floor(bx), Math.floor(bodyY), Math.floor(bw), Math.floor(bodyH), Math.floor(r), true);
+    // Body shading
+    const g = ctx.createLinearGradient(bx, bodyY, bx, bodyY + bodyH);
+    g.addColorStop(0, 'rgba(255,255,255,0.08)');
+    g.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = g;
+    roundRect(ctx, Math.floor(bx), Math.floor(bodyY), Math.floor(bw), Math.floor(bodyH), Math.floor(r), true);
+
+    // Wheels
+    const wheelR = Math.max(3, Math.min(6, bw * 0.16));
+    ctx.fillStyle = '#20242a';
+    ctx.beginPath();
+    ctx.arc(bx + bw * 0.22, by + bh - wheelR, wheelR, 0, Math.PI * 2);
+    ctx.arc(bx + bw * 0.78, by + bh - wheelR, wheelR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Handle/neck
+    ctx.strokeStyle = '#b0b7c3';
+    ctx.lineWidth = Math.max(2, Math.floor(bw * 0.08));
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    const neckX = bx + bw * 0.6;
+    const neckY = bodyY + bodyH * 0.25;
+    ctx.moveTo(neckX, neckY);
+    ctx.quadraticCurveTo(bx + bw * 0.85, bodyY - bh * 0.15, bx + bw * 0.4, bodyY - bh * 0.08);
+    ctx.stroke();
+
+    // Nozzle
+    const nozW = Math.max(10, bw * 0.55);
+    const nozH = Math.max(4, Math.min(8, bh * 0.12));
+    const nozX = bx + bw * 0.12;
+    const nozY = bodyY - nozH - 2;
+    ctx.fillStyle = '#2d3340';
+    roundRect(ctx, Math.floor(nozX), Math.floor(nozY), Math.floor(nozW), Math.floor(nozH), 3, true);
+
+    // Top cap
+    ctx.fillStyle = '#9aa3b2';
+    roundRect(ctx, Math.floor(bx + bw * 0.18), Math.floor(bodyY + bodyH * 0.1), Math.floor(bw * 0.64), Math.floor(bodyH * 0.22), Math.floor(r * 0.6), true);
+
+    ctx.restore();
+  }
+
+  function drawBalloon(ctx, x, y, w, h, alpha) {
+    ctx.save();
+    // Balloon body
+    ctx.globalAlpha = alpha;
+    const r = Math.min(w, h) * 0.5;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.ellipse(x + w / 2, y + h / 2, w * 0.45, h * 0.48, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Slight highlight
+    ctx.globalAlpha = Math.max(0.08, alpha - 0.35);
+    ctx.fillStyle = '#e8f0ff';
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.35, y + h * 0.35, w * 0.12, h * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Knot
+    ctx.fillStyle = '#d9ddea';
+    roundRect(ctx, Math.floor(x + w * 0.46), Math.floor(y + h * 0.92), Math.floor(w * 0.08), Math.floor(h * 0.06), 2, true);
+    // String
+    ctx.strokeStyle = '#d0d6ea';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.5, y + h);
+    ctx.quadraticCurveTo(x + w * 0.45, y + h + 8, x + w * 0.52, y + h + 14);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawStone(ctx, x, y, w, h, color, variant) {
+    ctx.save();
+    const base = color || '#6c6860';
+    ctx.fillStyle = base;
+    const rx = x, ry = y, rw = w, rh = h;
+    ctx.beginPath();
+    // Irregular top using variant
+    const k = variant % 3;
+    ctx.moveTo(rx, ry + rh);
+    ctx.lineTo(rx, ry + rh * 0.45);
+    if (k === 0) {
+      ctx.quadraticCurveTo(rx + rw * 0.2, ry, rx + rw * 0.5, ry + rh * 0.2);
+    } else if (k === 1) {
+      ctx.quadraticCurveTo(rx + rw * 0.3, ry + rh * 0.1, rx + rw * 0.6, ry + rh * 0.22);
+    } else {
+      ctx.quadraticCurveTo(rx + rw * 0.15, ry + rh * 0.08, rx + rw * 0.55, ry + rh * 0.18);
+    }
+    ctx.quadraticCurveTo(rx + rw * 0.85, ry + rh * 0.35, rx + rw, ry + rh * 0.5);
+    ctx.lineTo(rx + rw, ry + rh);
+    ctx.closePath();
+    ctx.fill();
+    // Shade
+    const g = ctx.createLinearGradient(rx, ry, rx, ry + rh);
+    g.addColorStop(0, 'rgba(255,255,255,0.06)');
+    g.addColorStop(1, 'rgba(0,0,0,0.15)');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGap(ctx, x, w, depth) {
+    // Draw a dark hole across the footpath with jagged edges
+    const top = RUN_Y;
+    const d = Math.max(8, depth || 12);
+    ctx.save();
+    // Dark inner
+    ctx.fillStyle = '#0d0d10';
+    ctx.fillRect(Math.floor(x), Math.floor(top - 2), Math.floor(w), Math.floor(d + 2));
+    // Jagged rim
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10;
+      const px = x + w * t;
+      const py = top + (Math.sin((t + (x % 13) * 0.03) * Math.PI * 3) * 2);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawScore(ctx) {
