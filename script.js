@@ -4,6 +4,36 @@
   const ctx = c.getContext('2d');
   // crisper pixel look for sprites
   ctx.imageSmoothingEnabled = false;
+  // DPI scaling + gradient cache for mobile crispness/perf
+  let scaleX = 1, scaleY = 1;
+  const GRAD = { sky: null, sun: null };
+  const SUN = { x: W - 80, y: 110, r: 42 };
+  function resizeCanvas() {
+    const rect = c.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = Math.max(1, Math.floor(rect.width || W));
+    const cssH = Math.max(1, Math.floor(rect.height || H));
+    // Backing store in physical pixels; visual size controlled by CSS
+    c.width = Math.round(cssW * dpr);
+    c.height = Math.round(cssH * dpr);
+    scaleX = c.width / W;
+    scaleY = c.height / H;
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    // Rebuild gradients in logical space
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#ffd9a3');
+    sky.addColorStop(0.55, '#f2e6c8');
+    sky.addColorStop(1, '#ebe7df');
+    GRAD.sky = sky;
+    const sun = ctx.createRadialGradient(SUN.x, SUN.y, 8, SUN.x, SUN.y, SUN.r);
+    sun.addColorStop(0, 'rgba(255,230,150,0.95)');
+    sun.addColorStop(1, 'rgba(255,230,150,0)');
+    GRAD.sun = sun;
+  }
+  window.addEventListener('resize', () => { resizeCanvas(); if (!running) draw(ctx); });
+  window.addEventListener('orientationchange', () => setTimeout(() => { resizeCanvas(); if (!running) draw(ctx); }, 60));
+  c.addEventListener('contextmenu', e => e.preventDefault());
   const scoreEl = document.getElementById('score');
   const restartBtn = document.getElementById('restart');
 
@@ -253,25 +283,17 @@
   }
 
   function draw(ctx) {
-    ctx.clearRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, H);
 
-    // Sky gradient (warm Indian morning tone)
-    const sky = ctx.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, '#ffd9a3');
-    sky.addColorStop(0.55, '#f2e6c8');
-    sky.addColorStop(1, '#ebe7df');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, W, H);
+  // Sky gradient (cached)
+  ctx.fillStyle = GRAD.sky || '#ebe7df';
+  ctx.fillRect(0, 0, W, H);
 
-    // Sun glow
-    const sunX = W - 80, sunY = 110, sunR = 42;
-    const sun = ctx.createRadialGradient(sunX, sunY, 8, sunX, sunY, sunR);
-    sun.addColorStop(0, 'rgba(255,230,150,0.95)');
-    sun.addColorStop(1, 'rgba(255,230,150,0)');
-    ctx.fillStyle = sun;
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
-    ctx.fill();
+  // Sun glow (cached)
+  ctx.fillStyle = GRAD.sun || 'rgba(255,230,150,0.4)';
+  ctx.beginPath();
+  ctx.arc(SUN.x, SUN.y, SUN.r, 0, Math.PI * 2);
+  ctx.fill();
 
   // (Removed skyline block silhouettes)
 
@@ -408,7 +430,7 @@
     ctx.fillText('Game Over', W / 2, H / 2 - 16);
     ctx.font = '500 16px system-ui, sans-serif';
     ctx.fillText(`Final Score: ${score}`, W / 2, H / 2 + 10);
-    ctx.fillText('Press R or click Restart', W / 2, H / 2 + 36);
+  ctx.fillText('Double-tap to Restart • or press R / click Restart', W / 2, H / 2 + 36);
   }
 
   function roundRect(ctx, x, y, w, h, r, fill) {
@@ -422,6 +444,7 @@
     if (fill) ctx.fill(); else ctx.stroke();
   }
 
-  // start once
+  // start once (ensure proper scaling before first frame)
+  resizeCanvas();
   restart();
 })();
