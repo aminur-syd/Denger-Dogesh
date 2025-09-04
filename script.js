@@ -136,7 +136,6 @@
     if (isFinite(aspect) && aspect > 0) {
       dog.w = Math.round(dog.h * aspect);
     }
-    // If intro is visible and we haven't started, draw dog on welcome screen
     if (!running && introOverlay && introOverlay.classList.contains('show')) {
       draw(bctx);
       ctx.clearRect(0, 0, c.width, c.height);
@@ -269,7 +268,6 @@
   let lastTapTime = 0;
   function onPointerDown(e) {
     e.preventDefault();
-  // If intro is visible, consume first tap to start rather than jump
   if (introOverlay && introOverlay.classList.contains('show')) return;
     const now = performance.now();
     if (gameOver && now - lastTapTime < 350) {
@@ -294,7 +292,6 @@
       restart();
     }
   }
-  // Start only after user gesture
   window.addEventListener('pointerdown', startFromIntro);
   window.addEventListener('keydown', (e) => {
     if ((e.key === ' ' || e.key === 'Enter') && introOverlay && introOverlay.classList.contains('show')) {
@@ -335,7 +332,6 @@
     return { x: nx, y: ny, w: nw, h: nh };
   }
   function getDogHitbox(d) {
-    // Inset dog hitbox fairly to reduce unfair collisions
     const l = Math.max(8, Math.floor(d.w * 0.14));
     const r = l;
     const t = Math.max(8, Math.floor(d.h * 0.12));
@@ -344,10 +340,8 @@
   }
   function getObstacleHitbox(o) {
     if (o.kind === 'gap') {
-      // Treat gap as a thin collider at footpath level; we’ll special-case in overlap loop
       return { x: o.x, y: RUN_Y - 2, w: o.w, h: 4 };
     }
-    // Default inset for solid obstacles; a bit more forgiving on sides/top
     const baseL = Math.max(4, Math.floor(o.w * 0.12));
     const baseR = baseL;
     const baseT = Math.max(6, Math.floor(o.h * 0.18));
@@ -355,33 +349,27 @@
     return insetRect(o.x, o.y, o.w, o.h, baseL, baseT, baseR, baseB);
   }
   function spawnObstacle() {
-    // Randomize obstacle types: vacuum, balloon, stone, or gap
     const r = Math.random();
     const last = obstacles.length ? obstacles[obstacles.length - 1] : null;
     let o;
     if (r < 0.35) {
-      // Vacuum cleaner (various colors)
       const w = 34 + Math.random() * 26;
       const h = 46 + Math.random() * 24;
       const color = ['#d24141', '#3d72d8', '#2db36b', '#d6922f', '#7a4bd6'][Math.floor(Math.random() * 5)];
       o = { kind: 'vacuum', w, h, y: RUN_Y - h, color };
     } else if (r < 0.65) {
-      // Stones (low, different widths)
       const w = 24 + Math.random() * 36;
       const h = 16 + Math.random() * 22;
       const tone = ['#6c6860', '#7a756b', '#5d5a54', '#706a62'][Math.floor(Math.random() * 4)];
       o = { kind: 'stone', w, h, y: RUN_Y - h, color: tone, variant: Math.floor(Math.random() * 3) };
     } else if (r < 0.9) {
-      // Used white semi-transparent balloons
       const w = 18 + Math.random() * 12;
       const h = 30 + Math.random() * 18;
-      const lift = 6 + Math.random() * 18; // hover above footpath
+      const lift = 6 + Math.random() * 18;
       o = { kind: 'balloon', w, h, y: RUN_Y - h - lift, alpha: 0.55 + Math.random() * 0.2 };
     } else {
-      // Broken gaps between footpath (holes to jump over)
       const w = 44 + Math.random() * 50;
       const depth = 12 + Math.random() * 8;
-      // Represent as obstacle with nominal height for drawing; collision handled specially
       o = { kind: 'gap', w, h: depth, y: RUN_Y - Math.min(8, depth), depth };
     }
     const baseX = W + o.w + Math.random() * 60;
@@ -412,7 +400,6 @@
     while (obstacles.length && obstacles[0].x + obstacles[0].w < -20) { obstacles.shift(); obstaclesPassed += 1; }
     for (const o of obstacles) {
       if (o.kind === 'gap') {
-        // Dog collides with a gap if his feet are over the hole at footpath level
         const footY = dog.y + dog.h;
         if (footY >= RUN_Y - 1) {
           const footL = dog.x + dog.w * 0.25;
@@ -700,31 +687,24 @@
   }
 
   function drawVacuum(ctx, x, y, w, h, bodyColor = '#d24141') {
-    // Bottom-aligned within given box (x,y,w,h)
     const bx = x, by = y, bw = w, bh = h;
     const bodyH = bh * 0.55;
     const bodyY = by + (bh - bodyH);
     const r = Math.max(6, Math.min(12, bw * 0.25));
-    // Body (canister)
     ctx.save();
     ctx.fillStyle = bodyColor;
     roundRect(ctx, Math.floor(bx), Math.floor(bodyY), Math.floor(bw), Math.floor(bodyH), Math.floor(r), true);
-    // Body shading
     const g = ctx.createLinearGradient(bx, bodyY, bx, bodyY + bodyH);
     g.addColorStop(0, 'rgba(255,255,255,0.08)');
     g.addColorStop(1, 'rgba(0,0,0,0.12)');
     ctx.fillStyle = g;
     roundRect(ctx, Math.floor(bx), Math.floor(bodyY), Math.floor(bw), Math.floor(bodyH), Math.floor(r), true);
-
-    // Wheels
     const wheelR = Math.max(3, Math.min(6, bw * 0.16));
     ctx.fillStyle = '#20242a';
     ctx.beginPath();
     ctx.arc(bx + bw * 0.22, by + bh - wheelR, wheelR, 0, Math.PI * 2);
     ctx.arc(bx + bw * 0.78, by + bh - wheelR, wheelR, 0, Math.PI * 2);
     ctx.fill();
-
-    // Handle/neck
     ctx.strokeStyle = '#b0b7c3';
     ctx.lineWidth = Math.max(2, Math.floor(bw * 0.08));
     ctx.lineCap = 'round';
@@ -734,16 +714,12 @@
     ctx.moveTo(neckX, neckY);
     ctx.quadraticCurveTo(bx + bw * 0.85, bodyY - bh * 0.15, bx + bw * 0.4, bodyY - bh * 0.08);
     ctx.stroke();
-
-    // Nozzle
     const nozW = Math.max(10, bw * 0.55);
     const nozH = Math.max(4, Math.min(8, bh * 0.12));
     const nozX = bx + bw * 0.12;
     const nozY = bodyY - nozH - 2;
     ctx.fillStyle = '#2d3340';
     roundRect(ctx, Math.floor(nozX), Math.floor(nozY), Math.floor(nozW), Math.floor(nozH), 3, true);
-
-    // Top cap
     ctx.fillStyle = '#9aa3b2';
     roundRect(ctx, Math.floor(bx + bw * 0.18), Math.floor(bodyY + bodyH * 0.1), Math.floor(bw * 0.64), Math.floor(bodyH * 0.22), Math.floor(r * 0.6), true);
 
@@ -752,24 +728,20 @@
 
   function drawBalloon(ctx, x, y, w, h, alpha) {
     ctx.save();
-    // Balloon body
     ctx.globalAlpha = alpha;
     const r = Math.min(w, h) * 0.5;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.ellipse(x + w / 2, y + h / 2, w * 0.45, h * 0.48, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Slight highlight
     ctx.globalAlpha = Math.max(0.08, alpha - 0.35);
     ctx.fillStyle = '#e8f0ff';
     ctx.beginPath();
     ctx.ellipse(x + w * 0.35, y + h * 0.35, w * 0.12, h * 0.16, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
-    // Knot
     ctx.fillStyle = '#d9ddea';
     roundRect(ctx, Math.floor(x + w * 0.46), Math.floor(y + h * 0.92), Math.floor(w * 0.08), Math.floor(h * 0.06), 2, true);
-    // String
     ctx.strokeStyle = '#d0d6ea';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -785,7 +757,6 @@
     ctx.fillStyle = base;
     const rx = x, ry = y, rw = w, rh = h;
     ctx.beginPath();
-    // Irregular top using variant
     const k = variant % 3;
     ctx.moveTo(rx, ry + rh);
     ctx.lineTo(rx, ry + rh * 0.45);
@@ -800,7 +771,6 @@
     ctx.lineTo(rx + rw, ry + rh);
     ctx.closePath();
     ctx.fill();
-    // Shade
     const g = ctx.createLinearGradient(rx, ry, rx, ry + rh);
     g.addColorStop(0, 'rgba(255,255,255,0.06)');
     g.addColorStop(1, 'rgba(0,0,0,0.15)');
@@ -810,14 +780,11 @@
   }
 
   function drawGap(ctx, x, w, depth) {
-    // Draw a dark hole across the footpath with jagged edges
     const top = RUN_Y;
     const d = Math.max(8, depth || 12);
     ctx.save();
-    // Dark inner
     ctx.fillStyle = '#0d0d10';
     ctx.fillRect(Math.floor(x), Math.floor(top - 2), Math.floor(w), Math.floor(d + 2));
-    // Jagged rim
     ctx.strokeStyle = 'rgba(255,255,255,0.12)';
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -1008,10 +975,8 @@
 
   createBackBuffer();
   resizeCanvas();
-  // Show intro on load, don't auto-start
   document.body.classList.remove('is-playing');
   if (introOverlay) introOverlay.classList.add('show');
-  // Draw a static frame under the intro
   dog.y = RUN_Y - dog.h; dog.vy = 0; dog.onGround = true;
   draw(bctx);
   ctx.clearRect(0, 0, c.width, c.height);
