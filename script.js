@@ -26,6 +26,11 @@
     sun.addColorStop(0, 'rgba(255,230,150,0.95)');
     sun.addColorStop(1, 'rgba(255,230,150,0)');
     GRAD.sun = sun;
+
+    // Invalidate cached road tiles if any (scale/DPR changed)
+    if (typeof drawRoadDamage === 'function') {
+      drawRoadDamage._cache = new Map();
+    }
   }
   function applyFullscreenLayout() {
     const fs = !!(document.fullscreenElement || document.webkitFullscreenElement);
@@ -77,6 +82,7 @@
   const SPRITE_FRAMES = 0;
   const SPRITE_FPS = 12;
   const MIN_OBS_GAP = 100; // minimum horizontal gap between obstacles
+  const ROAD_SEG_W = 110; // segment width for road damage tiling
 
   const dogImg = new Image();
   dogImg.src = 'essentials/dog.png';
@@ -187,6 +193,7 @@
   let elapsed = 0, obstaclesPassed = 0, score = 0, speed = BASE_SPEED;
   let worldX = 0;
   let clouds = [];
+  let lastScoreDrawn = -1; // avoid unnecessary DOM updates
 
   const dog = { x: 64, y: RUN_Y - 70, w: 98, h: 100, vy: 0, onGround: true, leg: 0 };
   /** obstacles are {x,y,w,h} moving left at world speed */
@@ -316,7 +323,10 @@
     }
 
     draw(ctx);
-    scoreEl.textContent = `Score: ${score}`;
+    if (score !== lastScoreDrawn) {
+      scoreEl.textContent = `Score: ${score}`;
+      lastScoreDrawn = score;
+    }
 
     if (running) requestAnimationFrame(loop);
     else if (gameOver) {
@@ -650,65 +660,82 @@
     const top = GROUND_Y;
     const bottom = H;
     const roadH = bottom - top;
-    const segW = 110; // segment width for repeating patterns
+    const segW = ROAD_SEG_W; // tile width
     // Use same parallax speed as lane dashes so both stay in sync
     const scroll = worldX * 0.6;
-  const baseIdx = Math.floor(scroll / segW);
-  const offset = Math.floor(scroll % segW);
-    for (let x = -segW - offset, i = 0; x < W + segW; x += segW, i++) {
-      const idx = baseIdx + i - 1;
-      const rng = new RNG(0x9e3779b9 ^ (idx * 0x85ebca6b));
+    const baseIdx = Math.floor(scroll / segW);
+    const offset = Math.floor(scroll % segW);
 
-      // Cracks: 3-6 per segment
+    // Lazy-create an offscreen cache map on the function object
+    const cache = (drawRoadDamage._cache = drawRoadDamage._cache || new Map());
+
+    // Helper to get or build a tile for a given segment index
+    const getTile = (idx) => {
+      if (cache.has(idx)) return cache.get(idx);
+      const rng = new RNG(0x9e3779b9 ^ (idx * 0x85ebca6b));
+      const tile = document.createElement('canvas');
+      tile.width = Math.max(1, Math.floor(segW * Math.max(1, scaleX)));
+      tile.height = Math.max(1, Math.floor(roadH * Math.max(1, scaleY)));
+      const tctx = tile.getContext('2d');
+      tctx.scale(tile.width / segW, tile.height / roadH);
+
+      // Cracks
       const cracks = rng.int(3, 6);
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = 1;
+      tctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      tctx.lineWidth = 1;
       for (let c = 0; c < cracks; c++) {
-        let cx0 = x + rng.range(6, segW - 6);
-        let cy0 = top + rng.range(8, roadH - 10);
+        let cx0 = rng.range(6, segW - 6);
+        let cy0 = rng.range(8, roadH - 10);
         const len = rng.int(14, 26);
-        ctx.beginPath();
-        ctx.moveTo(cx0, cy0);
+        tctx.beginPath();
+        tctx.moveTo(cx0, cy0);
         for (let k = 0; k < len; k++) {
           cx0 += rng.range(-4, 4);
           cy0 += rng.range(-1.6, 1.6);
-          ctx.lineTo(cx0, cy0);
+          tctx.lineTo(cx0, cy0);
         }
-        ctx.stroke();
-        // occasional branch
+        tctx.stroke();
         if (rng.next() < 0.35) {
-          ctx.beginPath();
-          ctx.moveTo(cx0, cy0);
+          tctx.beginPath();
+          tctx.moveTo(cx0, cy0);
           for (let b = 0; b < 10; b++) {
             cx0 += rng.range(-3, 3);
             cy0 += rng.range(-3, 3);
-            ctx.lineTo(cx0, cy0);
+            tctx.lineTo(cx0, cy0);
           }
-          ctx.stroke();
+          tctx.stroke();
         }
       }
 
-      // Potholes: ~1 per segment on average
+      // Potholes
       const potholes = rng.int(0, 2);
       for (let p = 0; p < potholes; p++) {
-        const px = x + rng.range(12, segW - 12);
-        const py = top + rng.range(roadH * 0.25, roadH * 0.95);
+        const px = rng.range(12, segW - 12);
+        const py = rng.range(roadH * 0.25, roadH * 0.95);
         const r = rng.range(6, 16);
-        // rough ellipse shape
-        ctx.beginPath();
+        tctx.beginPath();
         for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
           const rr = r + rng.range(-2.5, 2.5);
           const vx = px + Math.cos(a) * rr;
           const vy = py + Math.sin(a) * rr * 0.75;
-          if (a === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+          if (a === 0) tctx.moveTo(vx, vy); else tctx.lineTo(vx, vy);
         }
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(20,20,20,0.9)';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(240,240,240,0.08)';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
+        tctx.closePath();
+        tctx.fillStyle = 'rgba(20,20,20,0.9)';
+        tctx.fill();
+        tctx.strokeStyle = 'rgba(240,240,240,0.08)';
+        tctx.lineWidth = 1.5;
+        tctx.stroke();
       }
+
+      cache.set(idx, tile);
+      return tile;
+    };
+
+    for (let x = -segW - offset, i = 0; x < W + segW; x += segW, i++) {
+      const idx = baseIdx + i - 1;
+      const tile = getTile(idx);
+      ctx.drawImage(tile, Math.floor(x), top, segW, roadH);
     }
   }
 
