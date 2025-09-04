@@ -363,10 +363,10 @@
       const tone = ['#6c6860', '#7a756b', '#5d5a54', '#706a62'][Math.floor(Math.random() * 4)];
       o = { kind: 'stone', w, h, y: RUN_Y - h, color: tone, variant: Math.floor(Math.random() * 3) };
     } else if (r < 0.9) {
-      const w = 18 + Math.random() * 12;
-      const h = 30 + Math.random() * 18;
-      const lift = 6 + Math.random() * 18;
-      o = { kind: 'balloon', w, h, y: RUN_Y - h - lift, alpha: 0.55 + Math.random() * 0.2 };
+      const w = 26 + Math.random() * 16;
+      const h = 24 + Math.random() * 14;
+      const lift = 8 + Math.random() * 14;
+      o = { kind: 'bag', w, h, y: RUN_Y - h - lift, alpha: 0.6 + Math.random() * 0.18, phase: Math.random() * Math.PI * 2 };
     } else {
       const w = 44 + Math.random() * 50;
       const depth = 12 + Math.random() * 8;
@@ -671,8 +671,8 @@
       case 'vacuum':
         drawVacuum(ctx, o.x, o.y, o.w, o.h, o.color);
         break;
-      case 'balloon':
-        drawBalloon(ctx, o.x, o.y, o.w, o.h, o.alpha || 0.6);
+      case 'bag':
+        drawPlasticBag(ctx, o.x, o.y, o.w, o.h, o.alpha || 0.65, o.phase || 0);
         break;
       case 'stone':
         drawStone(ctx, o.x, o.y, o.w, o.h, o.color, o.variant || 0);
@@ -726,27 +726,43 @@
     ctx.restore();
   }
 
-  function drawBalloon(ctx, x, y, w, h, alpha) {
+  function drawPlasticBag(ctx, x, y, w, h, alpha, phase) {
     ctx.save();
+    const sway = Math.sin(elapsed * 2.2 + phase) * Math.min(6, w * 0.25);
+    const bob = Math.sin(elapsed * 3.1 + phase * 0.7) * Math.min(4, h * 0.2);
+    const ox = x + sway;
+    const oy = y + bob;
     ctx.globalAlpha = alpha;
-    const r = Math.min(w, h) * 0.5;
     ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.ellipse(x + w / 2, y + h / 2, w * 0.45, h * 0.48, 0, 0, Math.PI * 2);
+    ctx.moveTo(ox + w * 0.2, oy + h * 0.25);
+    ctx.quadraticCurveTo(ox + w * 0.1, oy + h * 0.05, ox + w * 0.28, oy + h * 0.02);
+    ctx.lineTo(ox + w * 0.34, oy + h * 0.02);
+    ctx.quadraticCurveTo(ox + w * 0.36, oy + h * 0.12, ox + w * 0.38, oy + h * 0.16);
+    ctx.lineTo(ox + w * 0.62, oy + h * 0.16);
+    ctx.quadraticCurveTo(ox + w * 0.64, oy + h * 0.08, ox + w * 0.66, oy + h * 0.02);
+    ctx.lineTo(ox + w * 0.72, oy + h * 0.02);
+    ctx.quadraticCurveTo(ox + w * 0.9, oy + h * 0.05, ox + w * 0.8, oy + h * 0.27);
+    ctx.quadraticCurveTo(ox + w * 0.94, oy + h * 0.5, ox + w * 0.84, oy + h * 0.8);
+    ctx.quadraticCurveTo(ox + w * 0.6, oy + h * 1.0, ox + w * 0.34, oy + h * 0.94);
+    ctx.quadraticCurveTo(ox + w * 0.1, oy + h * 0.8, ox + w * 0.2, oy + h * 0.5);
+    ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = Math.max(0.08, alpha - 0.35);
     ctx.fillStyle = '#e8f0ff';
     ctx.beginPath();
-    ctx.ellipse(x + w * 0.35, y + h * 0.35, w * 0.12, h * 0.16, 0, 0, Math.PI * 2);
+    ctx.moveTo(ox + w * 0.32, oy + h * 0.38);
+    ctx.quadraticCurveTo(ox + w * 0.5, oy + h * 0.25, ox + w * 0.66, oy + h * 0.42);
+    ctx.quadraticCurveTo(ox + w * 0.52, oy + h * 0.34, ox + w * 0.4, oy + h * 0.5);
+    ctx.closePath();
     ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = '#d9ddea';
-    roundRect(ctx, Math.floor(x + w * 0.46), Math.floor(y + h * 0.92), Math.floor(w * 0.08), Math.floor(h * 0.06), 2, true);
-    ctx.strokeStyle = '#d0d6ea';
-    ctx.lineWidth = 1;
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
     ctx.beginPath();
-    ctx.moveTo(x + w * 0.5, y + h);
-    ctx.quadraticCurveTo(x + w * 0.45, y + h + 8, x + w * 0.52, y + h + 14);
+    ctx.moveTo(ox + w * 0.38, oy + h * 0.2);
+    ctx.quadraticCurveTo(ox + w * 0.5, oy + h * 0.28, ox + w * 0.62, oy + h * 0.2);
     ctx.stroke();
     ctx.restore();
   }
