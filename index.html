@@ -20,6 +20,15 @@
     <div id="score">Score: 0</div>
   </div>
   <canvas id="game" width="420" height="640" aria-label="Dog runner game area"></canvas>
+    <!-- Intro overlay shown until user taps to start -->
+    <div id="intro-overlay" class="overlay-intro show" role="dialog" aria-label="Game intro">
+      <div class="intro-card">
+        <div class="intro-title">Denger Dogesh</div>
+        <div class="intro-sub">Tap to jump • Avoid obstacles</div>
+        <div class="intro-cta" aria-hidden="true">Tap anywhere to start</div>
+  <div class="intro-legal" aria-hidden="true">&copy; 2025 Aminur Rahman • Contact: <a href="mailto:sydneyaminur@gmail.com">sydneyaminur@gmail.com</a></div>
+      </div>
+    </div>
   <div id="gameover-overlay" class="overlay-go" hidden>
     <div class="go-card">
       <div class="go-title">Game Over</div>
@@ -37,15 +46,7 @@
     <div class="bottom-row hint-row">
       <div class="hint">Jump: Tap anywhere / Space / ↑ / W</div>
     </div>
-    <div class="bottom-row about-row">
-      <div class="about">
-        <span class="about-name">Aminur Rahman</span>
-        <span class="about-sep">•</span>
-        <span class="about-purpose">Fun project</span>
-        <span class="about-sep">•</span>
-        <span class="about-contact">Contact: <a href="mailto:sydneyaminur@gmail.com">sydneyaminur@gmail.com</a></span>
-      </div>
-    </div>
+    
   </div>
 </div>
 <script src="script.js" defer></script>

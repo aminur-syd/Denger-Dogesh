@@ -81,7 +81,7 @@
     if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(bc, 0, 0, c.width, c.height);
     if (score !== lastScoreDrawn) {
-      scoreEl.textContent = `Score: ${score}`;
+      if (scoreEl) scoreEl.textContent = String(score);
       lastScoreDrawn = score;
     }
   }
@@ -104,6 +104,7 @@
   const goOverlay = document.getElementById('gameover-overlay');
   const goScoreEl = document.getElementById('go-score');
   const goRestartBtn = document.getElementById('go-restart');
+  const introOverlay = document.getElementById('intro-overlay');
   const BUILD_CACHE = new Map();
 
   const GROUND_Y = H - 90;
@@ -134,6 +135,14 @@
     const aspect = DOG_SPRITE.fw / DOG_SPRITE.fh;
     if (isFinite(aspect) && aspect > 0) {
       dog.w = Math.round(dog.h * aspect);
+    }
+    // If intro is visible and we haven't started, draw dog on welcome screen
+    if (!running && introOverlay && introOverlay.classList.contains('show')) {
+      draw(bctx);
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(bc, 0, 0, c.width, c.height);
     }
   };
 
@@ -260,6 +269,8 @@
   let lastTapTime = 0;
   function onPointerDown(e) {
     e.preventDefault();
+  // If intro is visible, consume first tap to start rather than jump
+  if (introOverlay && introOverlay.classList.contains('show')) return;
     const now = performance.now();
     if (gameOver && now - lastTapTime < 350) {
       restart();
@@ -271,10 +282,25 @@
   }
   function onPointerUp(e) {
     e.preventDefault();
+  if (introOverlay && introOverlay.classList.contains('show')) return;
     if (dog.vy < 0) dog.vy *= 0.55;
   }
   c.addEventListener('pointerdown', onPointerDown);
   c.addEventListener('pointerup', onPointerUp);
+
+  function startFromIntro() {
+    if (introOverlay && introOverlay.classList.contains('show')) {
+      introOverlay.classList.remove('show');
+      restart();
+    }
+  }
+  // Start only after user gesture
+  window.addEventListener('pointerdown', startFromIntro);
+  window.addEventListener('keydown', (e) => {
+    if ((e.key === ' ' || e.key === 'Enter') && introOverlay && introOverlay.classList.contains('show')) {
+      e.preventDefault(); startFromIntro();
+    }
+  });
 
   function doJump() {
     dog.vy = JUMP_V;
@@ -293,6 +319,8 @@
     goAudio.pause();
     goPlayed = false;
   if (goOverlay) { goOverlay.hidden = true; goOverlay.classList.remove('show'); }
+  document.body.classList.add('is-playing');
+  if (scoreEl) scoreEl.textContent = '0';
   accMs = 0; lastTimeMs = 0; lastRenderMs = 0;
   requestAnimationFrame(tick);
   }
@@ -348,10 +376,11 @@
     else if (gameOver) {
       playGameOver();
       if (goOverlay) {
-        if (goScoreEl) goScoreEl.textContent = `Final Score: ${score}`;
+        if (goScoreEl) goScoreEl.textContent = String(score);
         goOverlay.hidden = false;
         goOverlay.classList.add('show');
       }
+      document.body.classList.remove('is-playing');
       renderFrame();
     }
   }
@@ -763,5 +792,14 @@
 
   createBackBuffer();
   resizeCanvas();
-  restart();
+  // Show intro on load, don't auto-start
+  document.body.classList.remove('is-playing');
+  if (introOverlay) introOverlay.classList.add('show');
+  // Draw a static frame under the intro
+  dog.y = RUN_Y - dog.h; dog.vy = 0; dog.onGround = true;
+  draw(bctx);
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bc, 0, 0, c.width, c.height);
 })();

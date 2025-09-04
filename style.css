@@ -32,7 +32,9 @@ canvas { background:#14183a; border:2px solid #2e3aa8; border-radius:14px; box-s
 	.overlay-go .go-score { font-size: 1.2rem; }
 	.overlay-go .go-actions { gap: 18px; }
 	}
-}
+
+/* Hide bottom HUD while intro is visible */
+.overlay-intro.show ~ .hud-bottom { display:none !important; }
 
 /* Fullscreen tweaks */
 :fullscreen body, body:fullscreen {
@@ -59,3 +61,21 @@ body.is-fullscreen .hud-top-left { display:none !important; }
 .overlay-go .go-title { font:700 28px system-ui, sans-serif; color:#e6e6f0; margin-bottom:8px; }
 .overlay-go .go-score { font:500 16px system-ui, sans-serif; color:#e6e6f0; margin-bottom:12px; opacity:0.95; }
 .overlay-go .go-actions { display:flex; gap:12px; justify-content:center; }
+
+/* Intro overlay */
+.overlay-intro { position:absolute; inset:0; display:none; align-items:center; justify-content:center; pointer-events:none; }
+.overlay-intro.show { display:flex; }
+.overlay-intro .intro-card { pointer-events:auto; background:rgba(10,12,28,.85); border:1px solid #2e3aa8; border-radius:14px; padding:18px 20px; box-shadow:0 8px 40px rgba(0,0,0,.45); max-width:80%; text-align:center; }
+.overlay-intro .intro-title { font:700 28px 'Luckiest Guy', system-ui, sans-serif; color:#ffe27a; margin-bottom:8px; letter-spacing:0.5px; }
+.overlay-intro .intro-sub { font:500 16px system-ui, sans-serif; color:#e6e6f0; margin-bottom:12px; opacity:0.95; }
+.overlay-intro .intro-cta { font:600 16px system-ui, sans-serif; color:#cfe3ff; opacity:0.9; }
+.overlay-intro .intro-legal { margin-top:10px; font: 400 12px system-ui, sans-serif; color:#aab6d8; opacity:0.85; }
+.overlay-intro .intro-legal a { color:#cfe3ff; text-decoration:none; }
+.overlay-intro .intro-legal a:hover { text-decoration:underline; }
+
+@media (max-width: 480px) {
+	.overlay-intro .intro-card { max-width: 92vw; padding: 20px 14px; }
+	.overlay-intro .intro-title { font-size: 26px; }
+	.overlay-intro .intro-sub, .overlay-intro .intro-cta { font-size: 15px; }
+	.overlay-intro .intro-legal { font-size: 12px; }
+}
