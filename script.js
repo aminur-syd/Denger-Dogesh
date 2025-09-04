@@ -237,6 +237,11 @@
   let worldX = 0;
   let clouds = [];
   let lastScoreDrawn = -1;
+  let highScore = 0;
+  try {
+    const hs = localStorage.getItem('dd_highscore');
+    if (hs) highScore = Math.max(0, parseInt(hs, 10) || 0);
+  } catch (_) {}
 
   const dog = { x: 64, y: RUN_Y - 70, w: 98, h: 100, vy: 0, onGround: true, leg: 0 };
   const obstacles = [];
@@ -364,9 +369,10 @@
       o = { kind: 'stone', w, h, y: RUN_Y - h, color: tone, variant: Math.floor(Math.random() * 3) };
     } else if (r < 0.9) {
       const w = 26 + Math.random() * 16;
-      const h = 24 + Math.random() * 14;
-      const lift = 8 + Math.random() * 14;
-      o = { kind: 'bag', w, h, y: RUN_Y - h - lift, alpha: 0.6 + Math.random() * 0.18, phase: Math.random() * Math.PI * 2 };
+      const h = 18 + Math.random() * 10;
+      const squash = 0.8 + Math.random() * 0.25;
+      const skew = (Math.random() * 2 - 1) * 0.18;
+      o = { kind: 'bag', w, h, y: RUN_Y - h, alpha: 0.9, squash, skew };
     } else {
       const w = 44 + Math.random() * 50;
       const depth = 12 + Math.random() * 8;
@@ -397,6 +403,13 @@
     const interval = Math.max(1.3, 2.6 - elapsed * 0.045);
     if (elapsed > 1.2 && lastSpawn > interval) { lastSpawn = 0; spawnObstacle(); }
     for (const o of obstacles) o.x -= speed * dt;
+    for (const o of obstacles) {
+      if (o.kind === 'bag') {
+        o.t = (o.t || 0) + dt;
+        const sq = (o.squash || 1);
+        o.y = RUN_Y - o.h * sq;
+      }
+    }
     while (obstacles.length && obstacles[0].x + obstacles[0].w < -20) { obstacles.shift(); obstaclesPassed += 1; }
     for (const o of obstacles) {
       if (o.kind === 'gap') {
@@ -426,6 +439,10 @@
     if (now - lastRenderMs >= MIN_RENDER_MS - 0.5) { renderFrame(); lastRenderMs = now; }
     if (running) requestAnimationFrame(tick);
     else if (gameOver) {
+      if (score > highScore) {
+        highScore = score;
+        try { localStorage.setItem('dd_highscore', String(highScore)); } catch (_) {}
+      }
       playGameOver();
       if (goOverlay) {
         if (goScoreEl) goScoreEl.textContent = String(score);
@@ -672,7 +689,7 @@
         drawVacuum(ctx, o.x, o.y, o.w, o.h, o.color);
         break;
       case 'bag':
-        drawPlasticBag(ctx, o.x, o.y, o.w, o.h, o.alpha || 0.65, o.phase || 0);
+        drawPlasticBag(ctx, o.x, o.y, o.w, o.h, o.alpha || 0.9, o.squash || 1, o.skew || 0);
         break;
       case 'stone':
         drawStone(ctx, o.x, o.y, o.w, o.h, o.color, o.variant || 0);
@@ -726,43 +743,47 @@
     ctx.restore();
   }
 
-  function drawPlasticBag(ctx, x, y, w, h, alpha, phase) {
+  function drawPlasticBag(ctx, x, y, w, h, alpha, squash, skew) {
     ctx.save();
-    const sway = Math.sin(elapsed * 2.2 + phase) * Math.min(6, w * 0.25);
-    const bob = Math.sin(elapsed * 3.1 + phase * 0.7) * Math.min(4, h * 0.2);
-    const ox = x + sway;
-    const oy = y + bob;
+    const shH = 2;
+    ctx.globalAlpha = 0.18 * alpha;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(x + w * 0.5, RUN_Y - 0.5, w * 0.46, shH * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
     ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.transform(1, 0, skew, squash, 0, 0);
     ctx.fillStyle = '#ffffff';
     ctx.strokeStyle = 'rgba(0,0,0,0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(ox + w * 0.2, oy + h * 0.25);
-    ctx.quadraticCurveTo(ox + w * 0.1, oy + h * 0.05, ox + w * 0.28, oy + h * 0.02);
-    ctx.lineTo(ox + w * 0.34, oy + h * 0.02);
-    ctx.quadraticCurveTo(ox + w * 0.36, oy + h * 0.12, ox + w * 0.38, oy + h * 0.16);
-    ctx.lineTo(ox + w * 0.62, oy + h * 0.16);
-    ctx.quadraticCurveTo(ox + w * 0.64, oy + h * 0.08, ox + w * 0.66, oy + h * 0.02);
-    ctx.lineTo(ox + w * 0.72, oy + h * 0.02);
-    ctx.quadraticCurveTo(ox + w * 0.9, oy + h * 0.05, ox + w * 0.8, oy + h * 0.27);
-    ctx.quadraticCurveTo(ox + w * 0.94, oy + h * 0.5, ox + w * 0.84, oy + h * 0.8);
-    ctx.quadraticCurveTo(ox + w * 0.6, oy + h * 1.0, ox + w * 0.34, oy + h * 0.94);
-    ctx.quadraticCurveTo(ox + w * 0.1, oy + h * 0.8, ox + w * 0.2, oy + h * 0.5);
+    ctx.moveTo(w * 0.18, h * 0.25);
+    ctx.quadraticCurveTo(w * 0.08, h * 0.08, w * 0.3, h * 0.03);
+    ctx.lineTo(w * 0.36, h * 0.03);
+    ctx.quadraticCurveTo(w * 0.38, h * 0.12, w * 0.4, h * 0.16);
+    ctx.lineTo(w * 0.6, h * 0.16);
+    ctx.quadraticCurveTo(w * 0.62, h * 0.08, w * 0.64, h * 0.03);
+    ctx.lineTo(w * 0.7, h * 0.03);
+    ctx.quadraticCurveTo(w * 0.92, h * 0.06, w * 0.78, h * 0.26);
+    ctx.quadraticCurveTo(w * 0.94, h * 0.5, w * 0.82, h * 0.82);
+    ctx.quadraticCurveTo(w * 0.58, h * 1.0, w * 0.34, h * 0.94);
+    ctx.quadraticCurveTo(w * 0.12, h * 0.78, w * 0.18, h * 0.5);
     ctx.closePath();
     ctx.fill();
-    ctx.globalAlpha = Math.max(0.08, alpha - 0.35);
+    ctx.globalAlpha = Math.max(0.08, alpha - 0.28);
     ctx.fillStyle = '#e8f0ff';
     ctx.beginPath();
-    ctx.moveTo(ox + w * 0.32, oy + h * 0.38);
-    ctx.quadraticCurveTo(ox + w * 0.5, oy + h * 0.25, ox + w * 0.66, oy + h * 0.42);
-    ctx.quadraticCurveTo(ox + w * 0.52, oy + h * 0.34, ox + w * 0.4, oy + h * 0.5);
+    ctx.moveTo(w * 0.32, h * 0.38);
+    ctx.quadraticCurveTo(w * 0.52, h * 0.24, w * 0.66, h * 0.42);
+    ctx.quadraticCurveTo(w * 0.52, h * 0.34, w * 0.4, h * 0.5);
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = alpha * 0.9;
     ctx.strokeStyle = 'rgba(0,0,0,0.08)';
     ctx.beginPath();
-    ctx.moveTo(ox + w * 0.38, oy + h * 0.2);
-    ctx.quadraticCurveTo(ox + w * 0.5, oy + h * 0.28, ox + w * 0.62, oy + h * 0.2);
+    ctx.moveTo(w * 0.25, h * 0.62);
+    ctx.quadraticCurveTo(w * 0.42, h * 0.7, w * 0.58, h * 0.6);
     ctx.stroke();
     ctx.restore();
   }
@@ -795,28 +816,86 @@
     ctx.restore();
   }
 
-  function drawGap(ctx, x, w, depth) {
+  function drawGap(ctx, oOrX, wMaybe, depthMaybe) {
+    const isObj = typeof oOrX === 'object';
+    const x = isObj ? oOrX.x : oOrX;
+    const w = isObj ? oOrX.w : wMaybe;
+    const depth = isObj ? (oOrX.depth || oOrX.h) : depthMaybe;
     const top = RUN_Y;
     const d = Math.max(8, depth || 12);
     ctx.save();
-    ctx.fillStyle = '#0d0d10';
-    ctx.fillRect(Math.floor(x), Math.floor(top - 2), Math.floor(w), Math.floor(d + 2));
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let i = 0; i <= 10; i++) {
-      const t = i / 10;
-      const px = x + w * t;
-      const py = top + (Math.sin((t + (x % 13) * 0.03) * Math.PI * 3) * 2);
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    const yTop = top - 1;
+    const steps = Math.max(6, Math.floor(w / 10));
+    const seed = ((Math.floor(x) * 2654435761) ^ 0x9e3779b9) >>> 0;
+    let s = seed;
+    const rand = () => (s = (1664525 * s + 1013904223) >>> 0, (s / 4294967296) - 0.5);
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const px = Math.floor(x + w * t);
+      const jitter = Math.sin((t + (x % 7) * 0.37) * Math.PI * 3) * 3.0 + rand() * 1.4;
+      const py = yTop + jitter;
+      pts.push({ x: px, y: py });
     }
-    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const cpx = pts[i].x;
+      const cpy = pts[i].y;
+      const mx = (pts[i].x + pts[i + 1].x) / 2;
+      const my = (pts[i].y + pts[i + 1].y) / 2;
+      ctx.quadraticCurveTo(cpx, cpy, mx, my);
+    }
+    const last = pts[pts.length - 1];
+    const prev = pts[pts.length - 2];
+    if (prev) ctx.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
+    ctx.lineTo(Math.floor(x + w), Math.floor(top + d));
+    ctx.lineTo(Math.floor(x), Math.floor(top + d));
+    ctx.closePath();
+  ctx.fillStyle = '#0d0d10';
+  ctx.fill();
+  const lip = Math.min(4, d * 0.4);
+  const lipGrad = ctx.createLinearGradient(0, yTop - 1, 0, yTop + lip + 1);
+  lipGrad.addColorStop(0, 'rgba(230,230,220,0.28)');
+  lipGrad.addColorStop(1, 'rgba(230,230,220,0.0)');
+  ctx.fillStyle = lipGrad;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.lineTo(Math.floor(x + w), yTop + lip);
+  ctx.lineTo(Math.floor(x), yTop + lip);
+  ctx.closePath();
+  ctx.fill();
+  const edgeGrad = ctx.createLinearGradient(0, top - 2, 0, top + 6);
+  edgeGrad.addColorStop(0, 'rgba(255,255,255,0.14)');
+  edgeGrad.addColorStop(1, 'rgba(255,255,255,0.00)');
+  ctx.strokeStyle = edgeGrad;
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y + 1);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y + 1);
+  ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    const rubbleN = Math.max(2, Math.floor(w / 32));
+    for (let i = 0; i < rubbleN; i++) {
+      const rx = Math.floor(x + 4 + (w - 8) * (i / rubbleN));
+      const rw = 2 + ((i * 13) % 3);
+      ctx.fillRect(rx, top - 2, rw, 2);
+    }
     ctx.restore();
   }
 
   function drawScore(ctx) {
     if (document.body.classList.contains('is-fullscreen')) return;
     const text = `Score: ${score}`;
+    const best = `Best: ${highScore}`;
     ctx.save();
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
@@ -826,6 +905,9 @@
     ctx.fillStyle = '#ffe27a';
     ctx.strokeText(text, 10, 10);
     ctx.fillText(text, 10, 10);
+    ctx.font = "700 18px 'Luckiest Guy', system-ui, sans-serif";
+    ctx.strokeText(best, 10, 36);
+    ctx.fillText(best, 10, 36);
     ctx.restore();
   }
 
