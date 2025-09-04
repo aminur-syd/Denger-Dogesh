@@ -22,8 +22,16 @@ canvas { background:#14183a; border:2px solid #2e3aa8; border-radius:14px; box-s
 .hint { opacity:.8; font-size:.9rem; }
 
 @media (max-width: 480px) {
-	body { font-size: 15px; }
-	.btn { font-size: 1rem; }
+	body { font-size: 17px; padding: 0; margin: 0; overflow-x: hidden; }
+	.wrap { gap: 18px; padding: 6px; min-height: 100vh; }
+	canvas { border-width: 3px; border-radius: 18px; box-shadow: 0 4px 24px rgba(0,0,0,.25); max-width: 98vw; height: auto; }
+	.btn { font-size: 1.15rem; padding: 1rem 2rem; min-width: 48px; min-height: 48px; }
+	.hud .btn, .hud #score, .hud .hint { font-size: 1.1rem; padding: 1rem 1.5rem; }
+	.overlay-go .go-card { max-width: 95vw; padding: 22px 10px; }
+	.overlay-go .go-title { font-size: 2rem; }
+	.overlay-go .go-score { font-size: 1.2rem; }
+	.overlay-go .go-actions { gap: 18px; }
+	}
 }
 
 /* Fullscreen tweaks */
