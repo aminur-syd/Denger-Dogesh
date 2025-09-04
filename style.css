@@ -9,6 +9,13 @@ canvas { background:#14183a; border:2px solid #2e3aa8; border-radius:14px; box-s
 .hud-top-left #score { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 .hud .bottom-row { display:flex; gap:12px; align-items:center; justify-content:center; pointer-events:auto; }
 .hud .btn, .hud #score, .hud .hint { backdrop-filter: blur(6px); background: rgba(17,22,52,0.6); padding: 6px 10px; border-radius: 10px; border:1px solid #2e3aa8; }
+.hud .about { backdrop-filter: none; background: none; padding: 0; border-radius: 0; border: 0; color:#e6e6f0; }
+.about { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:center; }
+.about-sep { opacity:.7; }
+.about a { color:#ffe27a; text-decoration:none; }
+.about a:hover { text-decoration:underline; }
+.hud .about a { color:#ffe27a; text-decoration:none; }
+.hud .about a:hover { text-decoration:underline; }
 .hud #score { font-weight:600; }
 .btn { padding:.65rem 1rem; border:1px solid #2e3aa8; border-radius:10px; background:#1a1f4d; color:#e6e6f0; cursor:pointer; touch-action:manipulation; }
 .btn:active { transform: translateY(1px); }

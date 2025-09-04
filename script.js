@@ -66,6 +66,8 @@
   const goRestartBtn = document.getElementById('go-restart');
 
   const GROUND_Y = H - 90;
+  const FOOTPATH_H = 18; // visual footpath height above the road
+  const RUN_Y = GROUND_Y - FOOTPATH_H; // gameplay ground: top of the footpath
   const GRAVITY = 1500;
   const JUMP_V = -650;
   const BASE_SPEED = 200;
@@ -74,6 +76,7 @@
   const JUMP_BUFFER = 0.18;
   const SPRITE_FRAMES = 0;
   const SPRITE_FPS = 12;
+  const MIN_OBS_GAP = 100; // minimum horizontal gap between obstacles
 
   const dogImg = new Image();
   dogImg.src = 'essentials/dog.png';
@@ -185,7 +188,7 @@
   let worldX = 0;
   let clouds = [];
 
-  const dog = { x: 64, y: GROUND_Y - 70, w: 98, h: 100, vy: 0, onGround: true, leg: 0 };
+  const dog = { x: 64, y: RUN_Y - 70, w: 98, h: 100, vy: 0, onGround: true, leg: 0 };
   /** obstacles are {x,y,w,h} moving left at world speed */
   const obstacles = [];
   let coyoteT = 0, jumpBufT = 0;
@@ -242,7 +245,7 @@
   function restart() {
     running = true; gameOver = false; tPrev = performance.now(); lastSpawn = 0;
     elapsed = 0; obstaclesPassed = 0; score = 0; speed = BASE_SPEED;
-    dog.x = 64; dog.y = GROUND_Y - dog.h; dog.vy = 0; dog.onGround = true; dog.leg = 0;
+  dog.x = 64; dog.y = RUN_Y - dog.h; dog.vy = 0; dog.onGround = true; dog.leg = 0;
     obstacles.length = 0;
   initClouds();
   if (goTimer) { clearTimeout(goTimer); goTimer = null; }
@@ -258,8 +261,12 @@
     const type = Math.random();
     const w = type < 0.5 ? 20 + Math.random() * 16 : 16 + Math.random() * 10;
     const h = type < 0.5 ? 22 + Math.random() * 20 : 42 + Math.random() * 26;
-    const x = W + w + Math.random() * 60;
-    const y = GROUND_Y - h;
+  // enforce gap from the last obstacle, if any
+  const last = obstacles.length ? obstacles[obstacles.length - 1] : null;
+  const baseX = W + w + Math.random() * 60;
+  const minX = last ? (last.x + last.w + MIN_OBS_GAP) : baseX;
+  const x = Math.max(baseX, minX);
+  const y = RUN_Y - h;
     obstacles.push({ x, y, w, h });
   }
 
@@ -277,8 +284,8 @@
     jumpBufT = Math.max(0, jumpBufT - dt);
     dog.vy += GRAVITY * dt;
     dog.y += dog.vy * dt;
-    if (dog.y + dog.h >= GROUND_Y) {
-      dog.y = GROUND_Y - dog.h;
+    if (dog.y + dog.h >= RUN_Y) {
+      dog.y = RUN_Y - dog.h;
       dog.vy = 0;
       dog.onGround = true;
     } else {
@@ -291,12 +298,9 @@
 
     lastSpawn += dt;
     const interval = Math.max(1.3, 2.6 - elapsed * 0.045);
-    if (elapsed > 1.2 && lastSpawn > interval) {
+  if (elapsed > 1.2 && lastSpawn > interval) {
       lastSpawn = 0;
       spawnObstacle();
-      if (Math.random() < Math.min(0.12, elapsed * 0.01)) {
-        setTimeout(() => obstacles.length && spawnObstacle(), 120 + Math.random() * 220);
-      }
     }
 
     for (const o of obstacles) o.x -= speed * dt;
@@ -338,43 +342,95 @@
 
   drawClouds(ctx);
 
-    const tOffset = (worldX * 0.35) % 120;
+  const tOffset = Math.floor((worldX * 0.35) % 120);
     for (let x = -140 - tOffset; x < W + 140; x += 120) {
       drawPalm(ctx, x, GROUND_Y - 18, 16);
     }
 
-    const baseY = GROUND_Y - 8;
+  const baseY = RUN_Y; // buildings sit on footpath top now
     const spacing = 148;
-    const bOffset = (worldX * 0.6) % spacing;
+  const bOffset = Math.floor((worldX * 0.6) % spacing);
     const baseIdx = Math.floor(worldX * 0.6 / spacing);
+    // Slight blur and soft alpha for buildings to push them into the scene
+    ctx.save();
+    ctx.filter = 'blur(1.2px)';
+    ctx.globalAlpha = 0.96;
     for (let x = -spacing - bOffset, i = 0; x < W + spacing; x += spacing, i++) {
-      const idx = baseIdx + i - 1;
+      const idx = baseIdx + i - 1; // stable building index, use for seeding
       const palette = ['#e6d3b2','#d7e7e1','#f0d2d2','#e7e7f6'];
-      const bw = 62 + (Math.abs(idx * 19) % 30);
-      const bh = 54 + (Math.abs(idx * 23) % 42);
+      const bw = 84 + (Math.abs(idx * 19) % 40);  // wider
+      const bh = 96 + (Math.abs(idx * 23) % 60);  // taller
       const fill = palette[((idx % palette.length) + palette.length) % palette.length];
-      drawStreetBuilding(ctx, x, baseY, bw, bh, fill);
+      drawStreetBuilding(ctx, x, baseY, bw, bh, fill, idx);
     }
+    ctx.restore();
 
-    ctx.fillStyle = '#353535';
-    ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-    const curbY = GROUND_Y - 8;
-    const curbOffset = (worldX * 0.45) % 28;
-    for (let x = -40 - curbOffset; x < W + 40; x += 28) {
-      ctx.fillStyle = '#ffd34d';
-      ctx.fillRect(x, curbY, 14, 6);
-      ctx.fillStyle = '#1f1f1f';
-      ctx.fillRect(x + 14, curbY, 14, 6);
+  // Draw footpath (white/yellow stripes with dirt; synced scroll)
+  const FP_Y = GROUND_Y - FOOTPATH_H;
+  // curb lip
+  ctx.fillStyle = '#312a26';
+  ctx.fillRect(0, FP_Y - 2, W, 2);
+  // stripes (dimmed colors for dirty look)
+  const stripeW = 16;
+  const period = stripeW * 2;
+  const stripeOffset = Math.floor((worldX * 0.6) % period);
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  for (let x = -period - stripeOffset; x < W + period; x += period) {
+    // yellow (dimmer)
+    ctx.fillStyle = '#dec74a';
+    ctx.fillRect(Math.floor(x), FP_Y, stripeW, FOOTPATH_H);
+    // white (off-white)
+    ctx.fillStyle = '#eeeee8';
+    ctx.fillRect(Math.floor(x + stripeW), FP_Y, stripeW, FOOTPATH_H);
+  }
+  ctx.restore();
+  // dirt overlay: gradient + specks and streaks, tied to scroll
+  let gg = ctx.createLinearGradient(0, FP_Y, 0, FP_Y + FOOTPATH_H);
+  gg.addColorStop(0, 'rgba(0,0,0,0.12)');
+  gg.addColorStop(0.6, 'rgba(0,0,0,0.08)');
+  gg.addColorStop(1, 'rgba(0,0,0,0.16)');
+  ctx.fillStyle = gg;
+  ctx.fillRect(0, FP_Y, W, FOOTPATH_H);
+  // seeded grime so it doesn't flicker
+  const segW = 96;
+  const scroll = worldX * 0.6;
+  const fpBaseIdx = Math.floor(scroll / segW);
+  const fpOff = Math.floor(scroll % segW);
+  const fpRngFunc = (seed) => new RNG(0x51ed1bad ^ (seed * 0x9e3779b1));
+  for (let x = -segW - fpOff, i = 0; x < W + segW; x += segW, i++) {
+    const fpRng = fpRngFunc(fpBaseIdx + i);
+    const specks = fpRng.int(5, 10);
+    for (let s = 0; s < specks; s++) {
+      const sx = x + fpRng.range(0, segW);
+      const sy = FP_Y + fpRng.range(2, FOOTPATH_H - 3);
+      const sw = fpRng.range(2, 6);
+      const sh = fpRng.range(1, 3);
+      ctx.fillStyle = `rgba(0,0,0,${fpRng.range(0.08, 0.18)})`;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), Math.floor(sw), Math.floor(sh));
     }
-    const laneY = GROUND_Y + Math.min(40, (H - GROUND_Y) * 0.45);
-    const dashOffset = (worldX * 0.6) % 48;
-    ctx.fillStyle = '#ffffffcc';
-    for (let x = -60 - dashOffset; x < W + 60; x += 48) {
-      ctx.fillRect(x, laneY, 24, 4);
+    // longer streak
+    if (fpRng.next() < 0.6) {
+      const sx = x + fpRng.range(4, segW - 12);
+      const sy = FP_Y + fpRng.range(2, FOOTPATH_H - 4);
+      const sw = fpRng.range(8, 18);
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), Math.floor(sw), 2);
     }
-    ctx.fillStyle = '#ffffff33';
-    ctx.fillRect(0, GROUND_Y + 8, W, 2);
-    ctx.fillRect(0, GROUND_Y + (H - GROUND_Y) - 10, W, 2);
+  }
+
+  ctx.fillStyle = '#353535';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  const laneY = GROUND_Y + Math.min(40, (H - GROUND_Y) * 0.45);
+  const dashOffset = Math.floor((worldX * 0.6) % 56);
+    ctx.fillStyle = '#ffffffb3';
+    for (let x = -60 - dashOffset; x < W + 60; x += 56) {
+      ctx.fillRect(x, laneY, 28, 4);
+    }
+  // Removed edge lines to keep a seamless joint between buildings and road
+
+  // Road damage: cracks and potholes (visual only)
+  drawRoadDamage(ctx);
 
     drawDog(ctx, dog);
 
@@ -395,22 +451,72 @@
     ctx.fill();
   }
 
-  function drawStreetBuilding(ctx, x, baseY, w, h, fill) {
+  function drawStreetBuilding(ctx, x, baseY, w, h, fill, stableIndex = 0) {
+    // Base facade
     ctx.fillStyle = fill;
     ctx.fillRect(x, baseY - h, w, h);
+    // Top shadow lip
     ctx.fillStyle = '#0000001a';
     ctx.fillRect(x, baseY - h - 3, w, 3);
-    ctx.fillStyle = '#8a6a4d';
-    const doorW = Math.min(18, Math.max(12, Math.floor(w * 0.18)));
-    ctx.fillRect(x + 6, baseY - Math.min(26, Math.floor(h * 0.35)), doorW, Math.min(26, Math.floor(h * 0.35)));
-    const cols = Math.max(2, Math.floor((w - 20) / 20));
-    const rows = Math.max(2, Math.floor((h - 20) / 22));
-    ctx.fillStyle = '#ffdfa6cc';
+  // Doors hidden for a continuous facade
+
+    // Seeded RNG per building for stable details
+  const seed = ((stableIndex|0) * 2654435761) ^ ((w|0) * 19349663) ^ ((h|0) * 83492791);
+    const rng = new RNG(seed >>> 0);
+
+    // Dusty overlay gradient (darker at the bottom)
+    const g = ctx.createLinearGradient(0, baseY - h, 0, baseY);
+    g.addColorStop(0, 'rgba(120,90,60,0.08)');
+    g.addColorStop(0.6, 'rgba(60,40,30,0.10)');
+    g.addColorStop(1, 'rgba(0,0,0,0.16)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, baseY - h, w, h);
+
+    // Random grime patches and vertical streaks
+    const grimeCount = Math.max(4, Math.floor(h / 26));
+    for (let i = 0; i < grimeCount; i++) {
+      const gw = rng.range(10, Math.min(40, w * 0.6));
+      const gh = rng.range(3, 12);
+      const gx = x + rng.range(2, w - gw - 2);
+      const gy = baseY - h + rng.range(8, h - gh - 8);
+      ctx.fillStyle = `rgba(50,40,30,${rng.range(0.06, 0.16)})`;
+      ctx.fillRect(gx, gy, gw, gh);
+      if (rng.next() < 0.45) {
+        const sx = gx + rng.range(-2, 2);
+        const sl = rng.range(8, Math.min(24, baseY - gy));
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(sx, gy, 2, sl);
+      }
+    }
+
+    // Windows (dusty, with a few lit)
+    const cols = Math.max(3, Math.floor((w - 20) / 16));
+    const rows = Math.max(4, Math.floor((h - 30) / 22));
+    const cellW = (w - 20) / cols;
+    const cellH = (h - 26) / rows;
     for (let ry = 0; ry < rows; ry++) {
-      for (let cx = 0; cx < cols; cx++) {
-        const wx = x + 10 + cx * ((w - 20) / cols) + 1;
-        const wy = baseY - h + 8 + ry * ((h - 26) / rows);
-        ctx.fillRect(wx, wy, 8, 10);
+      for (let cxI = 0; cxI < cols; cxI++) {
+        const wx = x + 10 + cxI * cellW + 1;
+        const wy = baseY - h + 8 + ry * cellH;
+        const ww = Math.min(10, cellW * 0.55);
+        const wh = Math.min(12, cellH * 0.55);
+        const lit = rng.next() < 0.08;
+        ctx.fillStyle = lit ? 'rgba(255,226,150,0.85)' : 'rgba(190,170,140,0.7)';
+        ctx.fillRect(wx, wy, ww, wh);
+        // occasional balcony ledge beneath window
+        if (rng.next() < 0.22) {
+          const bx = Math.floor(wx - 2);
+          const by = Math.floor(wy + wh + 2);
+          const bw2 = Math.max(12, Math.min(18, Math.floor(ww + 6)));
+          const broken = rng.next() < 0.35;
+          ctx.fillStyle = '#5b4a3d';
+          ctx.fillRect(bx, by, bw2, 3);
+          if (broken) {
+            const notch = Math.floor(rng.range(3, Math.min(6, bw2 * 0.5)));
+            ctx.fillStyle = '#3a312b';
+            ctx.fillRect(bx + bw2 - notch, by, notch, 3);
+          }
+        }
       }
     }
   }
@@ -428,13 +534,22 @@
         ctx.drawImage(dogImg, 0, 0, DOG_SPRITE.fw || dogImg.width, DOG_SPRITE.fh || dogImg.height,
           Math.round(d.x), drawY, Math.round(d.w), Math.round(d.h));
         if (d.onGround) {
-          const phase = Math.sin(animClock * 8);
+          // Walking gait: legs move closer and wider around the center
+          const gait = Math.sin(animClock * 8);
           const pawY = drawY + d.h - 6;
-          const pawW = Math.max(6, Math.floor(d.w * 0.14));
+          const baseW = Math.max(6, Math.floor(d.w * 0.14));
           const pawH = 4;
+          const centerX = d.x + d.w * 0.5;
+          const baseSpread = d.w * 0.18; // neutral half-distance from center
+          const spreadAmp = d.w * 0.08;  // how much legs come closer/wider
+          const spread = baseSpread + gait * spreadAmp;
+          const leftX = Math.round(centerX - spread - baseW * (1 - 0.1 * gait) / 2);
+          const rightX = Math.round(centerX + spread - baseW * (1 + 0.1 * gait) / 2);
+          const leftW = Math.round(baseW * (1 - 0.1 * gait));
+          const rightW = Math.round(baseW * (1 + 0.1 * gait));
           ctx.fillStyle = '#00000033';
-          roundRect(ctx, d.x + d.w * 0.25 + phase * 3, pawY, pawW, pawH, 2, true);
-          roundRect(ctx, d.x + d.w * 0.62 - phase * 3, pawY, pawW, pawH, 2, true);
+          roundRect(ctx, leftX, pawY, leftW, pawH, 2, true);
+          roundRect(ctx, rightX, pawY, rightW, pawH, 2, true);
         }
       }
       return;
@@ -523,6 +638,78 @@
     ctx.quadraticCurveTo(x + w * 0.5, y + r * 1.2, x + r * 0.6, y + r * 0.9);
     ctx.closePath();
     ctx.fill();
+  }
+
+  // Simple seeded RNG for stable, scroll-tied decorations
+  function RNG(seed) { this.s = seed >>> 0; }
+  RNG.prototype.next = function() { this.s = (1664525 * this.s + 1013904223) >>> 0; return this.s / 4294967296; };
+  RNG.prototype.range = function(a, b) { return a + (b - a) * this.next(); };
+  RNG.prototype.int = function(a, b) { return Math.floor(this.range(a, b + 1)); };
+
+  function drawRoadDamage(ctx) {
+    const top = GROUND_Y;
+    const bottom = H;
+    const roadH = bottom - top;
+    const segW = 110; // segment width for repeating patterns
+    // Use same parallax speed as lane dashes so both stay in sync
+    const scroll = worldX * 0.6;
+  const baseIdx = Math.floor(scroll / segW);
+  const offset = Math.floor(scroll % segW);
+    for (let x = -segW - offset, i = 0; x < W + segW; x += segW, i++) {
+      const idx = baseIdx + i - 1;
+      const rng = new RNG(0x9e3779b9 ^ (idx * 0x85ebca6b));
+
+      // Cracks: 3-6 per segment
+      const cracks = rng.int(3, 6);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = 1;
+      for (let c = 0; c < cracks; c++) {
+        let cx0 = x + rng.range(6, segW - 6);
+        let cy0 = top + rng.range(8, roadH - 10);
+        const len = rng.int(14, 26);
+        ctx.beginPath();
+        ctx.moveTo(cx0, cy0);
+        for (let k = 0; k < len; k++) {
+          cx0 += rng.range(-4, 4);
+          cy0 += rng.range(-1.6, 1.6);
+          ctx.lineTo(cx0, cy0);
+        }
+        ctx.stroke();
+        // occasional branch
+        if (rng.next() < 0.35) {
+          ctx.beginPath();
+          ctx.moveTo(cx0, cy0);
+          for (let b = 0; b < 10; b++) {
+            cx0 += rng.range(-3, 3);
+            cy0 += rng.range(-3, 3);
+            ctx.lineTo(cx0, cy0);
+          }
+          ctx.stroke();
+        }
+      }
+
+      // Potholes: ~1 per segment on average
+      const potholes = rng.int(0, 2);
+      for (let p = 0; p < potholes; p++) {
+        const px = x + rng.range(12, segW - 12);
+        const py = top + rng.range(roadH * 0.25, roadH * 0.95);
+        const r = rng.range(6, 16);
+        // rough ellipse shape
+        ctx.beginPath();
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+          const rr = r + rng.range(-2.5, 2.5);
+          const vx = px + Math.cos(a) * rr;
+          const vy = py + Math.sin(a) * rr * 0.75;
+          if (a === 0) ctx.moveTo(vx, vy); else ctx.lineTo(vx, vy);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(20,20,20,0.9)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(240,240,240,0.08)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
   }
 
   async function toggleFullscreen() {
