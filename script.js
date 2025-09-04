@@ -132,6 +132,32 @@
   });
   restartBtn.addEventListener('click', restart);
 
+  // Pointer/touch: tap or click anywhere to jump
+  // Use pointer events for broad device support
+  let lastTapTime = 0;
+  function onPointerDown(e) {
+    // prevent double-firing on touch (avoid default gestures like double-tap zoom)
+    e.preventDefault();
+    // double-tap/click to restart when game over
+    const now = performance.now();
+    if (gameOver && now - lastTapTime < 350) {
+      restart();
+      lastTapTime = 0;
+      return;
+    }
+    lastTapTime = now;
+    // buffer a jump; loop will consume respecting coyote time
+    jumpBufT = JUMP_BUFFER;
+  }
+  function onPointerUp(e) {
+    e.preventDefault();
+    // variable jump height with touch: releasing early reduces velocity
+    if (dog.vy < 0) dog.vy *= 0.55;
+  }
+  // Attach to canvas so it also works full-screen area of gameplay
+  c.addEventListener('pointerdown', onPointerDown);
+  c.addEventListener('pointerup', onPointerUp);
+
   function doJump() {
     dog.vy = JUMP_V;
     dog.onGround = false;

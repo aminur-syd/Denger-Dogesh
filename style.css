@@ -1,6 +1,6 @@
 html, body { height: 100%; margin: 0; background:#0f1226; color:#e6e6f0; font:16px/1.2 system-ui, sans-serif; }
 .wrap { display:grid; place-items:center; height:100%; gap:12px; }
-canvas { background:#14183a; border:2px solid #2e3aa8; border-radius:14px; box-shadow:0 8px 40px rgba(0,0,0,.35); }
+canvas { background:#14183a; border:2px solid #2e3aa8; border-radius:14px; box-shadow:0 8px 40px rgba(0,0,0,.35); touch-action:none; max-width:100%; height:auto; }
 .hud { display:flex; gap:16px; align-items:center; }
 .btn { padding:.5rem .8rem; border:1px solid #2e3aa8; border-radius:10px; background:#1a1f4d; color:#e6e6f0; cursor:pointer; }
 .btn:active { transform: translateY(1px); }
